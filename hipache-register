@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+# encoding: UTF-8
+#
+require 'redis'
+require 'thor'
+
+# Thor CLI for mapping domain names to servers in hipache
+class HipacheRegister < Thor
+
+  desc 'domain','Register a domain name to a backend in Hipache'
+  option :domain_name,  :required => true, :aliases => '-n'
+  option :backend_url,  :required => true, :aliases => '-b'
+  option :redis_server, :required => true, :aliases => '-s'
+  def domain
+    redis = Redis.new(:host => options[:redis_server])
+
+    # Remove the references if it exists
+    redis.del "frontend:#{options[:domain_name]}"
+
+    # Register application in proxy
+    redis.rpush "frontend:#{options[:domain_name]}", options[:domain_name]
+    redis.rpush "frontend:#{options[:domain_name]}", options[:backend_url]
+
+    # Get the inserted data
+    domain_name, backend_url = redis.lrange "frontend:#{options[:domain_name]}", 0, 3
+
+    # Display the data
+    puts "#{domain_name} => #{backend_url}"
+  end
+
+  desc 'examples', 'Examples for register domain'
+  def examples
+    puts "Examples:"
+    puts "#{$0} -n wwwapp.example.com -b http://host.example.com:4567 -s host.example.com"
+  end
+end
+
+HipacheRegister.start
